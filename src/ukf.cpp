@@ -1,4 +1,5 @@
 #include "ukf.h"
+#include "tools.h"
 #include "Eigen/Dense"
 #include <iostream>
 
@@ -6,6 +7,86 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
+
+// function for state Prediction
+VectorXd StatePredict(VectorXd x, double dt){
+
+    int n_x = 5;
+
+    double px =  x(0);
+    double py =  x(1);
+    double  v =  x(2);
+    double psi = x(3);
+    double dpsi =x(4);
+    double va =  x(5);
+    double vp =  x(6);
+
+    double dt2 = dt*dt;
+
+    VectorXd x_pl = VectorXd(n_x);
+    VectorXd fx = VectorXd(n_x);
+    fx.setZero();
+
+    if (fabs(dpsi)<0.001){
+
+        fx << v*cos(psi)*dt + 1.0/2.0*dt2*cos(psi)*va,
+              v*sin(psi)*dt + 1.0/2.0*dt2*sin(psi)*va,
+              dt*va,
+              1/2*dt2*vp,
+              dt*vp;
+
+    }else{
+        fx << v/dpsi*(sin(psi+dpsi*dt)-sin(psi)) + 1.0/2.0*dt2*cos(psi)*va,
+              v/dpsi*(-cos(psi+dpsi*dt)+cos(psi)) + 1.0/2.0*dt2*sin(psi)*va,
+              dt*va,
+              dpsi*dt+1/2*dt2*vp,
+              dt*vp;
+
+    }
+    x_pl = x.head(n_x) + fx;
+    return x_pl;
+}
+
+
+// Radar measurement function
+VectorXd MeasurementFRadar(VectorXd x){
+    double  px = x(0);
+    double  py = x(1);
+    double   v = x(2);
+    double  psi = x(3);
+    double dpsi = x(4);
+
+    VectorXd Z = VectorXd(3);
+
+    if (sqrt(pow(px*px + py*py,2))>0.001){
+
+      Z(0) = sqrt(px*px+py*py);
+      Z(1) = atan2(py,px);
+      Z(2) = (px*v*cos(psi) + py*v*sin(psi))/Z(0);
+      return Z;
+  } else {
+    Z(0) = sqrt(0.001);
+    Z(1) = atan2(0.001,0.001);
+    Z(2) = (px*v*cos(psi) + py*v*sin(psi))/Z(0);
+    return Z;
+  }
+}
+
+// LIDAR measurement function
+VectorXd MeasurementFLidar(VectorXd x){
+    double  px = x(0);
+    double  py = x(1);
+    VectorXd Z = VectorXd(2);
+    Z(0) = px;
+    Z(1) = py;
+    return Z;
+}
+
+
+
+
+
+
 
 /**
  * Initializes Unscented Kalman filter
@@ -17,17 +98,31 @@ UKF::UKF() {
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = true;
 
+  // define dimensions
+  n_x_ = 5;
+  n_aug_ = n_x_ + 2;
+
+  lambda_ = 3-n_aug_;
+
   // initial state vector
   x_ = VectorXd(5);
 
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
 
+  P_ << 1,0,0,0,0,
+        0,1,0,0,0,
+        0,0,1,0,0,
+        0,0,0,1,0,
+        0,0,0,0,1;
+
+
+  Xsig_pred_ = MatrixXd(5, 2*7+1);
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 5;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = 1;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -66,6 +161,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   Complete this function! Make sure you switch between lidar and radar
   measurements.
   */
+
+
+
+
 }
 
 /**
@@ -74,12 +173,12 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
  * measurement and this one.
  */
 void UKF::Prediction(double delta_t) {
-  /**
-  TODO:
 
-  Complete this function! Estimate the object's location. Modify the state
-  vector, x_. Predict sigma points, the state, and the state covariance matrix.
-  */
+// Generate sigma points
+  //initialization of matrices for sigma point calculations
+
+
+
 }
 
 /**
@@ -95,6 +194,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the lidar NIS.
   */
+
+
+
+
 }
 
 /**
@@ -110,4 +213,6 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the radar NIS.
   */
+
+
 }
