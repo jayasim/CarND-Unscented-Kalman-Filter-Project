@@ -380,6 +380,52 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the radar NIS.
   */
+  int n_z_ = 3;
 
+  VectorXd weights = VectorXd(2*n_aug_+1);
+  MatrixXd Wts_diag = MatrixXd(2*n_aug_+1,2*n_aug_+1);
+  MatrixXd Zsig = MatrixXd(n_z_, 2 * n_aug_ + 1);
+  MatrixXd S = MatrixXd(n_z_,n_z_);
+  VectorXd z_pred = VectorXd(n_z_);
+  VectorXd z_true = VectorXd(n_z_);
+  MatrixXd Ones_A = MatrixXd(1,2*n_aug_+1);
+  Ones_A.setOnes();
+
+  for (int i=0;i<2*n_aug_+1;i++){
+      Zsig.col(i) = MeasurementFRadar(Xsig_pred_.col(i));
+  }
+  weights(0) = lambda_/(lambda_+n_aug_);
+  weights.tail(2*n_aug_).fill(1/2./(lambda_+n_aug_));
+  //predict state mean
+  z_pred = Zsig*weights;
+  //calculate measurement covariance matrix S
+  S =(Zsig-z_pred*Ones_A)*MatrixXd(weights.asDiagonal())*(Zsig-z_pred*Ones_A).transpose();
+  VectorXd R_d = VectorXd(n_z_);
+  R_d << std_radr_*std_radr_,
+        std_radphi_*std_radphi_,
+        std_radrd_*std_radrd_;
+  S = S + MatrixXd(R_d.asDiagonal());
+  //cout<<"S"<<S<<endl;
+  z_true = meas_package.raw_measurements_;
+
+  MatrixXd Tc = MatrixXd(n_x_, n_z_);
+  MatrixXd Z_diff = MatrixXd(n_z_,2*n_aug_+1);
+  //calculate cross correlation matrix
+  MatrixXd K = MatrixXd(n_x_,n_z_);
+  Z_diff = (Zsig-z_pred*Ones_A);
+
+  for (int i=0;i<n_z_;i++){
+      Z_diff(i,2) = atan2(sin(Z_diff(i,2)),cos(Z_diff(i,2)));
+
+  }
+
+  Tc = (Xsig_pred_-x_*Ones_A)*MatrixXd(weights.asDiagonal())*Z_diff.transpose();
+  //calculate Kalman gain K;
+  K = Tc*S.inverse();
+  //update state mean and covariance matrix
+  x_ = x_ + K *(z_true - z_pred);
+
+  P_ = P_ - K*S*K.transpose();
+  NIS_radar_ = (z_true - z_pred).transpose()*S*(z_true - z_pred);
 
 }
