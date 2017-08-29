@@ -257,6 +257,52 @@ void UKF::Prediction(double delta_t) {
 
 // Generate sigma points
   //initialization of matrices for sigma point calculations
+  MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1);
+  VectorXd x_aug = VectorXd(n_aug_);
+  MatrixXd P_aug = MatrixXd(n_aug_,n_aug_);
+  MatrixXd A_aug = MatrixXd(n_aug_,n_aug_);
+  MatrixXd Ones_nAug = MatrixXd(1, n_aug_);
+  Ones_nAug.setOnes();
+  MatrixXd Ones_nA = MatrixXd(1, 2*n_aug_+1);
+  Ones_nA.setOnes();
+  //calculate AUGMENTED points ...
+  P_aug.setZero();
+  P_aug.topLeftCorner( n_x_, n_x_) = P_;
+  P_aug(5,5) = std_a_*std_a_; // 0 based indexing
+  P_aug(6,6) = std_yawdd_*std_yawdd_; // 0 based indexing
+
+  A_aug = P_aug.llt().matrixL();
+  x_aug.setZero();
+  x_aug.head(n_x_) << x_;
+
+  // augmented sigma points
+
+  Xsig_aug << x_aug,
+              x_aug*Ones_nAug+sqrt(lambda_+n_aug_)*A_aug,
+              x_aug*Ones_nAug-sqrt(lambda_+n_aug_)*A_aug; // generate sigma pts
+
+
+
+
+  //create matrix with predicted sigma points as columns
+  MatrixXd Xsig_pred = MatrixXd(n_x_, 2 * n_aug_ + 1);
+  Xsig_pred.col(0) = StatePredict(Xsig_aug.col(0),delta_t);
+  for (int i=1;i<=n_aug_;i++){
+    Xsig_pred.col(i) = StatePredict(Xsig_aug.col(i),delta_t);
+    Xsig_pred.col(i+n_aug_) = StatePredict(Xsig_aug.col(i+n_aug_),delta_t);
+  }
+
+  VectorXd weights = VectorXd(2*n_aug_+1);
+  MatrixXd Wts_diag = MatrixXd(2*n_aug_+1,2*n_aug_+1);
+  //set weights
+  weights(0) = lambda_/(lambda_+n_aug_);
+  weights.tail(2*n_aug_).fill(1/2./(lambda_+n_aug_));
+  Wts_diag  = MatrixXd(weights.asDiagonal());
+  //predict state mean
+  x_ = Xsig_pred*weights;
+  // predict covariance
+  P_ =(Xsig_pred-x_*Ones_nA)*Wts_diag*(Xsig_pred-x_*Ones_nA).transpose();
+  Xsig_pred_ = Xsig_pred;
 
 
 
