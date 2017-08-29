@@ -162,7 +162,88 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   measurements.
   */
 
+  if (!is_initialized_) {
+    /**
+    TODO:
+      * Initialize the state ekf_.x_ with the first measurement.
+      * Create the covariance matrix.
+      * Remember: you'll need to convert radar from polar to cartesian coordinates.
+    */
+    // first measurement
+    //cout << "UKF: " << endl;
+    if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      /**
+      Convert radar from polar to cartesian coordinates and initialize state.
+      */
+      float rho = meas_package.raw_measurements_(0);
+      float psi =  meas_package.raw_measurements_(1);
+      float drho =  meas_package.raw_measurements_(2);
 
+      x_(0) = rho*cos(psi);
+      x_(1) = rho*sin(psi);
+      x_(2) = drho; // Approximate value as dth is not known
+      x_(3) = psi; // Approximate value as dth is not known
+      x_(4) = 0; // Approximate value as dth is not known
+      if (fabs(rho)>0.001){
+        is_initialized_ = true;
+      }
+    }
+    else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      /**
+      Initialize state.
+      */
+      x_(0) =meas_package.raw_measurements_(0);
+      x_(1) =meas_package.raw_measurements_(1);
+      x_(2) = 0; // Approximate value of 0
+      x_(3) = 0; // Approximate value of 0
+      x_(4) = 0; // Approximate value of 0
+
+      if (sqrt(pow(x_(0),2)+pow(x_(1),2))>0.001){
+        is_initialized_ = true;
+      }
+
+    }
+
+    // done initializing, no need to predict or update
+
+    time_us_ = meas_package.timestamp_;
+    return;
+
+  }
+
+  //compute the time elapsed between the current and previous measurements
+  float dt = (meas_package.timestamp_ - time_us_) / 1000000.0;	//dt - expressed in seconds
+  time_us_ = meas_package.timestamp_;
+
+
+  //cout << "dt = " << dt <<endl<<endl;
+
+  //Use small dt to allow for turn effect
+  const double diff_t = 0.1;
+
+  while (dt > diff_t){
+		    Prediction(diff_t);
+		    dt -= diff_t;
+	}
+  Prediction(dt); // update states only if dt is above 0.001
+
+
+
+  //cout << "x_ = " << x_<<endl<<endl;
+
+  if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+
+    if (fabs(meas_package.raw_measurements_(0))>0.001){
+      UpdateRadar(meas_package);
+    }
+
+  } else if (meas_package.sensor_type_ == MeasurementPackage::LASER){
+      double l_px = meas_package.raw_measurements_(0);
+      double l_py = meas_package.raw_measurements_(1);
+      if (sqrt(pow(l_px,2)+pow(l_py,2))>0.001){
+        UpdateLidar(meas_package);
+      }
+  }
 
 
 }
